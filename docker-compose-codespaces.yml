@@ -1,49 +1,39 @@
 version: "3.8"
 services:
   backend-flask:
-    env_file:
+    environment:
+      env_file:
       - backend-flask-codespaces.env
     build: ./backend-flask
     ports:
       - "4567:4567"
-    healthcheck:
-      test: curl --fail "https://4567-${GITPOD_WORKSPACE_ID}.${GITPOD_WORKSPACE_CLUSTER_HOST}/api/activities/home" || exit 1
-      interval: 60s
-      retries: 5
-      start_period: 20s
-      timeout: 10s
+    networks:
+      - cruddur-net
     volumes:
       - ./backend-flask:/backend-flask
-    networks:
-      - cruddur-net   
   frontend-react-js:
-    env_file:
+    environment:
+      env_file:
       - frontend-react-js-codespaces.env
     build: ./frontend-react-js
     ports:
       - "3000:3000"
-    healthcheck:
-      test: curl --fail "https://3000-${GITPOD_WORKSPACE_ID}.${GITPOD_WORKSPACE_CLUSTER_HOST}" || exit 1
-      interval: 60s
-      retries: 5
-      start_period: 20s
-      timeout: 10s
+    networks:
+      - cruddur-net
     volumes:
       - ./frontend-react-js:/frontend-react-js
-    networks:
-      - cruddur-net 
-  xray-daemon:
-    image: "amazon/aws-xray-daemon"
+  db:
+    image: postgres:13-alpine
+    restart: always
     environment:
-      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
-      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
-      AWS_REGION: "us-east-1"
-    command:
-      - "xray -o -b xray-daemon:2000"
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
     ports:
-      - 2000:2000/udp
+      - '5432:5432'
     networks:
-      - cruddur-net       
+      - cruddur-net
+    volumes: 
+      - db:/var/lib/postgresql/data
   dynamodb-local:
     # https://stackoverflow.com/questions/67533058/persist-local-dynamodb-data-in-volumes-lack-permission-unable-to-open-databa
     # We needed to add user:root to get this working.
@@ -54,22 +44,22 @@ services:
     ports:
       - "8000:8000"
     networks:
-      - cruddur-net   
+      - cruddur-net
     volumes:
       - "./docker/dynamodb:/home/dynamodblocal/data"
     working_dir: /home/dynamodblocal
-  db:
-    image: postgres:13-alpine
-    restart: always
+  xray-daemon:
+    image: "amazon/aws-xray-daemon"
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_REGION: "${AWS_DEFAULT_REGION}"
+    command:
+      - "xray -o -b xray-daemon:2000"
     ports:
-      - '5432:5432'
+      - 2000:2000/udp
     networks:
-      - cruddur-net   
-    volumes: 
-      - db:/var/lib/postgresql/data      
+      - cruddur-net
 
 # the name flag is a hack to change the default prepend folder
 # name when outputting the image names
@@ -80,4 +70,4 @@ networks:
 
 volumes:
   db:
-    driver: local    
+    driver: local
